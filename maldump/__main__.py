@@ -31,22 +31,30 @@ def main():
 
     # Switch to root partition
     os.chdir(args.root_dir)
+    relpath = os.getcwd()
 
-    # Get a list of all installed avs
-    avs = AVManager.detect()
 
+    if not args.partition:
+        # Return a malwarebytes object
+        avs = AVManager.mwb_init(relpath)
+    else:
+        # Return a list of all installed avs
+        avs = AVManager.detect()
     if args.quar:
-        export_files(avs, cwd)
+        export_files(avs, cwd, args.delim)
     elif args.meta:
         export_meta(avs, cwd)
     elif args.all:
-        export_files(avs, cwd)
+        export_files(avs, cwd, args.delim)
         export_meta(avs, cwd)
+    elif args.search:
+        # Get a list of all installed avs
+        return AVManager.detect()
     else:
         list_files(avs)
 
 
-def export_files(avs, cwd, out_file='quarantine.tar'):
+def export_files(avs, cwd, delim, out_file='quarantine.tar'):
     total = 0
     for av in avs:
         entries = av.export()
@@ -54,7 +62,13 @@ def export_files(avs, cwd, out_file='quarantine.tar'):
             tar = tarfile.open(cwd + '/' + out_file, total and 'a' or 'w')
             total += len(entries)
             for entry in entries:
-                tarinfo = tarfile.TarInfo(av.name + '/' + entry.md5)
+                # Check for windows path - only path object exists, no WindowsPath object
+                if len(entry.path.split(":")) == 2:
+                    # Remove drive letter and create a posix path
+                    fname = delim.join(entry.path.split(":").pop(1).split("\\"))
+                else:
+                    fname = entry.path
+                tarinfo = tarfile.TarInfo(av.name + "/" + fname)
                 tarinfo.size = len(entry.malfile)
                 tar.addfile(tarinfo, io.BytesIO(entry.malfile))
             tar.close()
@@ -94,7 +108,7 @@ def parse_cli():
     parser = argparse.ArgumentParser(
         prog='maldump',
         formatter_class=argparse.RawTextHelpFormatter,
-        description='Multi-quarantine extractor',
+        description='Multi-quarantine extractor. Runs default in Malwarebytes relative extraction mode.',
         epilog='Supported quarantines:\n' + '\n'.join(sorted(['  * ' + av.name for av in AVManager.avs]))
     )
 
@@ -119,7 +133,19 @@ def parse_cli():
         help='equivalent of running both -q and -m'
     )
     parser.add_argument(
+        '-s', '--search', action='store_true',
+        help='returns list of found avs on system'
+    )
+    parser.add_argument(
         '-v', '--version', action='version', version='%(prog)s ' + __version__
+    )
+    parser.add_argument(
+        '-p', '--partition', action='store_true',
+        help='runs in partition mode (access to endpoint partition for scanning)'
+    )
+    parser.add_argument(
+        '-d', '--delim', type=str, nargs='?', const=1, default="/",
+        help='provide delim for file extraction (instead of recreating file hierarchy)'
     )
 
     return parser.parse_args()

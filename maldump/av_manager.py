@@ -18,3 +18,8 @@ class AVManager():
     def detect(cls):
         """Returns a list of avs installed on the system"""
         return [av for av in cls.avs if av.location.exists()]
+
+    @classmethod
+    def mwb_init(cls, relpath):
+        """Returns an active mwb object"""
+        return [malwarebytes.Malwarebytes(relpath)]
